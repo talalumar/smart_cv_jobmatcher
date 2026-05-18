@@ -1,33 +1,33 @@
 import * as resumeParserService from "../services/resumeParser.service.js";
 import Resume from "../models/Resume.js";
-import { handleResumeUpload } from "../services/resumeParser.service.js";
 
 export const uploadResume = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded",
+      });
     }
+     
+    const result =
+      await resumeParserService.handleResumeUpload(
+        req.file,
+        req.user.id
+      );
 
-    // Respond immediately
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Resume uploaded. Analysis in progress...",
+      message: "Resume uploaded successfully",
+      data: result,
     });
+  } catch (error) {
+    console.error(error);
 
-    // Process in background
-    // Process in background after response is sent
-handleResumeUpload(req.file, req.user.id)
-  .then(() => {
-    console.log("Background processing COMPLETE for user:", req.user.id);
-  })
-  .catch((err) => {
-    console.error("Background processing FAILED:", err.message);
-    console.error("Full error:", err);
-  });
-
-  } catch (err) {
-    console.error("Resume upload error:", err.message);
-    res.status(500).json({ message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 

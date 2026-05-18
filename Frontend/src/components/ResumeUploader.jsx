@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import API from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import useResumeStore from "@/store/resumeStore";
@@ -9,44 +9,8 @@ export default function ResumeUploader() {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [status, setStatus] = useState("idle");
   const { setResumeData } = useResumeStore();
   const { token } = useAuth();
-  const doneRef = useRef(false); // ← track if done without stale closure
-
-  const pollForResults = (authToken) => {
-    setStatus("processing");
-    doneRef.current = false;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await API.get("/resume/latest", {
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-
-        if (res.data.success && res.data.data) {
-          clearInterval(interval);
-          doneRef.current = true;
-          setResumeData(res.data.data);
-          setStatus("done");
-          setLoading(false);
-          alert("Resume analyzed successfully!");
-        }
-      } catch (err) {
-        console.log("Still processing...", err.message);
-      }
-    }, 5000);
-
-    // Stop after 3 minutes
-    setTimeout(() => {
-      clearInterval(interval);
-      if (!doneRef.current) {
-        setStatus("timeout");
-        setLoading(false);
-        alert("Analysis is taking longer than expected. Please refresh the page.");
-      }
-    }, 180000);
-  };
 
   const handleUpload = async () => {
     if (!file) { alert("Please select a resume"); return; }
@@ -55,33 +19,22 @@ export default function ResumeUploader() {
 
     try {
       setLoading(true);
-      setStatus("uploading");
-
       const formData = new FormData();
       formData.append("resume", file);
-
-      await API.post("/resume/upload", formData, {
+      const res = await API.post("/resume/upload", formData, {
         headers: {
           Authorization: `Bearer ${authToken}`,
           "Content-Type": "multipart/form-data",
         },
       });
-
-      pollForResults(authToken);
-
+      setResumeData(res.data.data);
+      alert("Resume uploaded successfully");
     } catch (error) {
       console.log(error);
-      alert("Upload failed. Please try again.");
+      alert("Upload failed");
+    } finally {
       setLoading(false);
-      setStatus("idle");
     }
-  };
-
-  const getStatusMessage = () => {
-    if (status === "uploading") return "Uploading resume...";
-    if (status === "processing") return "AI is analyzing your resume...";
-    if (status === "done") return "Analysis complete!";
-    return "Upload & Analyze →";
   };
 
   const handleDrop = (e) => {
@@ -125,6 +78,7 @@ export default function ResumeUploader() {
           onChange={(e) => setFile(e.target.files[0])}
         />
 
+        {/* Icon */}
         <div style={{
           width: "44px", height: "44px", borderRadius: "12px",
           background: file ? "#dcfce7" : "#f5f5f5",
@@ -164,7 +118,7 @@ export default function ResumeUploader() {
         )}
       </div>
 
-      {/* File info pill */}
+      {/* File info pill + change */}
       {file && (
         <div style={{
           display: "flex", alignItems: "center",
@@ -187,31 +141,6 @@ export default function ResumeUploader() {
           >
             Remove
           </button>
-        </div>
-      )}
-
-      {/* Processing status bar */}
-      {loading && (
-        <div style={{
-          background: "#f0f9ff",
-          border: "1px solid #bae6fd",
-          borderRadius: "10px",
-          padding: "10px 14px",
-          marginBottom: "14px",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-        }}>
-          <div style={{
-            width: "8px", height: "8px", borderRadius: "50%",
-            background: "#0ea5e9",
-            animation: "pulse 1.5s ease-in-out infinite",
-          }} />
-          <span style={{ fontSize: "12px", color: "#0369a1", fontWeight: "500" }}>
-            {status === "uploading"
-              ? "Uploading your resume..."
-              : "AI is analyzing your resume. This may take 30-60 seconds..."}
-          </span>
         </div>
       )}
 
@@ -242,17 +171,14 @@ export default function ResumeUploader() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 1s linear infinite" }}>
               <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="3" strokeDasharray="32" strokeDashoffset="12"/>
             </svg>
-            {getStatusMessage()}
+            Analyzing resume...
           </>
         ) : (
           "Upload & Analyze →"
         )}
       </button>
 
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
